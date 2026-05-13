@@ -1,46 +1,40 @@
-# Claude Usage Tracker — Chrome Extension
+# Claude Usage Tracker
 
-A lightweight Chrome extension that shows your Claude.ai usage limits inline — no more tabbing to settings to check.
+Shows your Claude.ai usage limit in the corner of your screen while you chat. Get desktop notifications at 20%, 50%, 75% and 90% so you never get cut off mid-flow.
 
-## Features
+## Install
 
-- **Persistent overlay** — faint `USAGE X% ▬▬▬` indicator bottom-right of every Claude tab
-- **Smart notifications** — desktop alerts at 20%, 50%, 75%, 90% used
-- **Auto-refresh** — scrapes usage data every 5 minutes in the background
-- **Weekly cap tracking** — separate bar for the weekly usage limit
-- **Toggle modes** — switch between persistent overlay or hidden (popup only) via the extension popup
-- **Manual refresh** — force a data update anytime from the popup
+**Step 1 — Download**
+Click the green **Code** button at the top of this page → **Download ZIP** → unzip the folder somewhere on your computer
 
-## Install (Developer Mode)
+**Step 2 — Open Chrome extensions**
+Paste this into your Chrome address bar and hit enter:
+`chrome://extensions`
 
-Chrome doesn't require publishing to the store — load it directly:
+**Step 3 — Enable Developer Mode**
+Toggle it on in the top-right corner
 
-1. Open Chrome and go to `chrome://extensions/`
-2. Enable **Developer mode** (top-right toggle)
-3. Click **Load unpacked**
-4. Select the `claude-usage-tracker` folder
-5. Done — the extension is active
+**Step 4 — Load the extension**
+Click **Load unpacked** → select the `claude-usage-tracker` folder you just unzipped
 
-## How it works
+**Step 5 — Seed your data**
+Visit [claude.ai/settings/usage](https://claude.ai/settings/usage) once. The extension reads your usage from that page. After that it updates automatically every 5 minutes.
 
-- When you're on any `claude.ai` page, the overlay appears bottom-right
-- Every 5 minutes, the extension fetches `claude.ai/settings/usage` in the background to scrape progress bar values
-- If you visit `/settings/usage` yourself, it scrapes immediately
-- Notifications fire once per threshold per session window
+Done. You'll see your usage % in the bottom-right corner of Claude.
 
 ## Troubleshooting
 
-**Overlay shows `—%`:**  
-Visit `claude.ai/settings/usage` at least once — the extension needs to see the usage page to parse your data. After that, background refresh handles it.
+**Shows —% and won't update**
+Go to claude.ai/settings/usage — the extension needs to visit that page at least once to read your data.
 
-**Notifications not appearing:**  
-Make sure Chrome notifications are allowed for extensions in your OS notification settings.
+**Notifications not showing**
+Check that Chrome is allowed to send notifications in your Mac/Windows notification settings.
 
-**Usage data seems stale:**  
-The status dot in the popup turns yellow if data is >15 minutes old. Click **↻ Refresh** to force an update.
+**Data looks old**
+The dot in the popup goes yellow if data is stale. Hit ↻ Refresh.
 
 ## Notes
 
-- Anthropic doesn't expose a public API for usage data — this extension scrapes the DOM/HTML of the settings page. If Claude changes their UI, the scraper may need updating.
-- Works on Claude Pro and Max plans (5-hour rolling window + weekly cap).
-- No data is sent anywhere — everything stays in your browser's local storage.
+- Works on Claude Pro and Max plans
+- No data leaves your browser — everything is stored locally
+- If Claude updates their UI the scraper may need a patch — raise an issue if that happens
