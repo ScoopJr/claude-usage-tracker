@@ -24,6 +24,13 @@ let currentMode = 'persistent';
     setTimeout(scrapeAndReport, 1800);
   }
 
+  // Self-contained auto-refresh — don't rely on background messaging
+  // First hit after 30s, then every 5 minutes
+  setTimeout(() => {
+    navigateToUsageAndScrape();
+    setInterval(navigateToUsageAndScrape, 5 * 60 * 1000);
+  }, 30 * 1000);
+
   // Watch for SPA navigation
   observeNavigation();
 })();
