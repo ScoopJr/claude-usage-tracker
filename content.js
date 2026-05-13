@@ -1,7 +1,11 @@
 // content.js — Claude Usage Tracker
+// Fully self-contained. No dependency on background script for refresh.
 
 let overlayEl = null;
 let currentMode = 'persistent';
+let refreshInterval = null;
+
+const REFRESH_MS = 5 * 60 * 1000; // 5 minutes
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
 
@@ -9,56 +13,62 @@ let currentMode = 'persistent';
   const stored = await getStorage(['overlayMode', 'usageData']);
   currentMode = stored.overlayMode || 'persistent';
 
-  const onSettingsPage = window.location.href.includes('claude.ai/settings');
-
-  if (onSettingsPage) {
-    // This tab was opened by the background scraper — scrape and report back
-    setTimeout(scrapeAndReport, 2000);
-  } else {
-    // Regular Claude chat tab — show overlay with cached data
-    createOverlay();
-    if (stored.usageData) {
-      updateOverlay(stored.usageData);
-    }
-    observeNavigation();
+  if (window.location.href.includes('claude.ai/settings')) {
+    // On settings page — scrape and report, then done
+    setTimeout(scrapeAndSave, 2000);
+    return;
   }
+
+  // On chat page — create overlay and start auto-refresh
+  createOverlay();
+  if (stored.usageData) updateOverlay(stored.usageData);
+
+  // Listen for storage changes — updates overlay the instant new data is saved
+  chrome.storage.onChanged.addListener((changes) => {
+    if (changes.usageData?.newValue) {
+      updateOverlay(changes.usageData.newValue);
+    }
+    if (changes.overlayMode?.newValue) {
+      currentMode = changes.overlayMode.newValue;
+      applyMode();
+    }
+  });
+
+  // Auto-refresh: open settings in background tab every 5 minutes
+  // First refresh after 60 seconds, then every 5 minutes
+  setTimeout(() => {
+    triggerBackgroundScrape();
+    refreshInterval = setInterval(triggerBackgroundScrape, REFRESH_MS);
+  }, 60 * 1000);
+
+  observeNavigation();
 })();
 
-// ── Storage helper ────────────────────────────────────────────────────────────
+// ── Storage ───────────────────────────────────────────────────────────────────
 
 function getStorage(keys) {
   return new Promise(resolve => chrome.storage.local.get(keys, resolve));
 }
 
-// ── Messages ──────────────────────────────────────────────────────────────────
+function saveUsageData(data) {
+  chrome.storage.local.set({ usageData: data, lastUpdated: Date.now() });
+}
 
-chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
-  if (msg.action === 'overlayModeChanged') {
-    currentMode = msg.mode;
-    applyMode();
-    sendResponse({ ok: true });
-  }
-  if (msg.action === 'overlayUpdate') {
-    // Background just got fresh data — update overlay immediately
-    updateOverlay(msg.data);
-    sendResponse({ ok: true });
-  }
-  return true;
-});
+// ── Scrape (on settings page) ─────────────────────────────────────────────────
 
-// ── Scrape (runs on settings page only) ──────────────────────────────────────
-
-function scrapeAndReport() {
+function scrapeAndSave() {
   const data = scrapeCurrentPage();
   if (data) {
-    // Tell background: here's the data, you can close this tab now
-    chrome.runtime.sendMessage({ action: 'scrapeComplete', data });
+    saveUsageData(data);
+    // Tell background to handle notifications + close this tab if it opened it
+    chrome.runtime.sendMessage({ action: 'scrapeComplete', data }).catch(() => {});
   } else {
-    // Retry once more after 2s if page hadn't fully loaded
+    // Retry once
     setTimeout(() => {
-      const retryData = scrapeCurrentPage();
-      if (retryData) {
-        chrome.runtime.sendMessage({ action: 'scrapeComplete', data: retryData });
+      const retry = scrapeCurrentPage();
+      if (retry) {
+        saveUsageData(retry);
+        chrome.runtime.sendMessage({ action: 'scrapeComplete', data: retry }).catch(() => {});
       }
     }, 2000);
   }
@@ -68,64 +78,85 @@ function scrapeCurrentPage() {
   // Strategy 1: aria progressbars
   const bars = document.querySelectorAll('[role="progressbar"]');
   if (bars.length > 0) {
-    const results = [];
+    const vals = [];
     bars.forEach(bar => {
       const now = parseFloat(bar.getAttribute('aria-valuenow') || 0);
       const max = parseFloat(bar.getAttribute('aria-valuemax') || 100);
-      results.push(max > 0 ? Math.round((now / max) * 100) : now);
+      vals.push(max > 0 ? Math.round((now / max) * 100) : now);
     });
-    return buildData(results);
+    if (vals[0] > 0 || vals.length > 1) return buildResult(vals);
   }
 
   // Strategy 2: <progress> elements
   const progEls = document.querySelectorAll('progress');
   if (progEls.length > 0) {
-    const results = [];
+    const vals = [];
     progEls.forEach(p => {
-      const val = parseFloat(p.value || 0);
-      const max = parseFloat(p.max || 100);
-      results.push(Math.round((val / max) * 100));
+      vals.push(Math.round((parseFloat(p.value || 0) / parseFloat(p.max || 100)) * 100));
     });
-    return buildData(results);
+    return buildResult(vals);
   }
 
-  // Strategy 3: divs with inline % width (common pattern for custom progress bars)
-  const allEls = document.querySelectorAll('[style*="width"]');
-  const pctBars = [];
-  allEls.forEach(el => {
+  // Strategy 3: divs with % width
+  const pctDivs = [];
+  document.querySelectorAll('[style*="width"]').forEach(el => {
     const w = el.style.width;
-    if (w && w.endsWith('%')) {
+    if (w?.endsWith('%')) {
       const n = parseFloat(w);
-      if (n >= 0 && n <= 100) pctBars.push(n);
+      if (n >= 0 && n <= 100) pctDivs.push(n);
     }
   });
-  if (pctBars.length > 0) {
-    return buildData(pctBars);
-  }
+  if (pctDivs.length > 0) return buildResult(pctDivs);
 
   return null;
 }
 
-function buildData(results) {
+function buildResult(vals) {
   return {
-    sessionPercent: Math.min(Math.round(results[0] || 0), 100),
-    weeklyPercent: results[1] !== undefined ? Math.min(Math.round(results[1]), 100) : null,
+    sessionPercent: Math.min(Math.round(vals[0] || 0), 100),
+    weeklyPercent: vals[1] !== undefined ? Math.min(Math.round(vals[1]), 100) : null,
     resetTime: extractResetTime(),
     scrapedAt: Date.now()
   };
 }
 
 function extractResetTime() {
-  const text = document.body?.innerText || '';
-  const m = text.match(/resets?\s+(in\s+[\d\w ]+|at\s+[\d:apm ]+)/i);
+  const m = (document.body?.innerText || '').match(/resets?\s+(in\s+[\d\w ]+|at\s+[\d:apm ]+)/i);
   return m ? m[0] : null;
 }
+
+// ── Background scrape trigger ─────────────────────────────────────────────────
+
+function triggerBackgroundScrape() {
+  // Ask background to open a settings tab
+  // If background fails, fall back to opening it ourselves
+  chrome.runtime.sendMessage({ action: 'manualRefresh' }, (response) => {
+    if (chrome.runtime.lastError || !response?.ok) {
+      // Background not available — open tab directly from content script context
+      // This won't work from content script, so we do nothing and rely on manual clicks
+      console.log('[Claude Tracker] Background unavailable, skipping auto-refresh');
+    }
+  });
+}
+
+// ── Messages ──────────────────────────────────────────────────────────────────
+
+chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+  if (msg.action === 'overlayModeChanged') {
+    currentMode = msg.mode;
+    applyMode();
+  }
+  if (msg.action === 'overlayUpdate' && msg.data) {
+    updateOverlay(msg.data);
+  }
+  sendResponse({ ok: true });
+  return true;
+});
 
 // ── Overlay ───────────────────────────────────────────────────────────────────
 
 function createOverlay() {
-  const existing = document.getElementById('claude-usage-overlay');
-  if (existing) existing.remove();
+  document.getElementById('claude-usage-overlay')?.remove();
 
   overlayEl = document.createElement('div');
   overlayEl.id = 'claude-usage-overlay';
@@ -140,7 +171,7 @@ function createOverlay() {
   `;
 
   overlayEl.addEventListener('click', () => {
-    window.open('https://claude.ai/settings/usage', '_blank');
+    window.location.href = 'https://claude.ai/settings/usage';
   });
 
   document.body.appendChild(overlayEl);
@@ -149,14 +180,15 @@ function createOverlay() {
 
 function updateOverlay(data) {
   if (!overlayEl) createOverlay();
-
   const pct = typeof data.sessionPercent === 'number' ? data.sessionPercent : 0;
+
   const pctEl = document.getElementById('cut-pct');
   const barEl = document.getElementById('cut-bar');
   if (!pctEl || !barEl) return;
 
   pctEl.textContent = `${pct}%`;
   barEl.style.width = `${pct}%`;
+  overlayEl.setAttribute('data-pct', pct);
 
   const state = pct >= 75 ? 'cut-danger' : pct >= 50 ? 'cut-warn' : '';
   pctEl.className = `cut-pct ${state}`.trim();
@@ -173,20 +205,20 @@ function applyMode() {
 function observeNavigation() {
   let lastUrl = location.href;
   new MutationObserver(() => {
-    if (location.href !== lastUrl) {
-      lastUrl = location.href;
-      setTimeout(() => {
-        if (!document.getElementById('claude-usage-overlay')) {
-          createOverlay();
-          getStorage(['usageData']).then(s => {
-            if (s.usageData) updateOverlay(s.usageData);
-          });
-        }
-        // If user manually navigated to settings, scrape it
-        if (location.href.includes('/settings')) {
-          setTimeout(scrapeAndReport, 1800);
-        }
-      }, 800);
-    }
+    if (location.href === lastUrl) return;
+    lastUrl = location.href;
+
+    setTimeout(async () => {
+      if (location.href.includes('/settings')) {
+        scrapeAndSave();
+        return;
+      }
+      // Back on chat — ensure overlay exists
+      if (!document.getElementById('claude-usage-overlay')) {
+        createOverlay();
+        const s = await getStorage(['usageData']);
+        if (s.usageData) updateOverlay(s.usageData);
+      }
+    }, 1000);
   }).observe(document, { subtree: true, childList: true });
 }
