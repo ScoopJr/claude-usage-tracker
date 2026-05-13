@@ -30,7 +30,3 @@ Click **Load unpacked** → select the `claude-usage-tracker` folder you just un
 Visit [claude.ai/settings/usage](https://claude.ai/settings/usage) once. The extension reads your usage from that page. After that it updates automatically every 5 minutes.
 
 Done. You'll see your usage % in the bottom-right corner of Claude.
-
----
-
-Then keep your original How it works, Troubleshooting, and Notes sections exactly as they were.
