@@ -1,6 +1,15 @@
-# Claude Usage Tracker
+# Claude Usage Tracker — Chrome Extension
 
-Shows your Claude.ai usage limit in the corner of your screen while you chat. Get desktop notifications at 20%, 50%, 75% and 90% so you never get cut off mid-flow.
+A lightweight Chrome extension that shows your Claude.ai usage limits inline — no more tabbing to settings to check.
+
+## Features
+
+- **Persistent overlay** — `USAGE X%` indicator in the bottom-right corner of every Claude tab
+- **Desktop notifications** — alerts at 20%, 50%, 75%, 90% used (requires Chrome notification permissions)
+- **Auto-refresh** — scrapes usage data every 5 minutes in the background
+- **Weekly cap tracking** — separate bar for the weekly usage limit
+- **Toggle** — show or hide the corner indicator via the extension popup
+- **Manual refresh** — force a data update anytime from the popup
 
 ## Install
 
@@ -22,19 +31,6 @@ Visit [claude.ai/settings/usage](https://claude.ai/settings/usage) once. The ext
 
 Done. You'll see your usage % in the bottom-right corner of Claude.
 
-## Troubleshooting
+---
 
-**Shows —% and won't update**
-Go to claude.ai/settings/usage — the extension needs to visit that page at least once to read your data.
-
-**Notifications not showing**
-Check that Chrome is allowed to send notifications in your Mac/Windows notification settings.
-
-**Data looks old**
-The dot in the popup goes yellow if data is stale. Hit ↻ Refresh.
-
-## Notes
-
-- Works on Claude Pro and Max plans
-- No data leaves your browser — everything is stored locally
-- If Claude updates their UI the scraper may need a patch — raise an issue if that happens
+Then keep your original How it works, Troubleshooting, and Notes sections exactly as they were.
