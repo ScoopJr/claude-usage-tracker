@@ -1,0 +1,78 @@
+/* overlay.css — Claude Usage Tracker */
+
+#claude-usage-overlay {
+  position: fixed !important;
+  bottom: 20px !important;
+  right: 20px !important;
+  z-index: 2147483647 !important;
+  cursor: pointer;
+  user-select: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+#claude-usage-overlay:hover {
+  transform: translateY(-2px);
+  opacity: 1 !important;
+}
+
+#claude-usage-overlay.cut-hidden {
+  display: none !important;
+}
+
+.cut-overlay-inner {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  background: rgba(10, 10, 13, 0.92) !important;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  border-radius: 8px;
+  padding: 6px 12px 6px 10px;
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+}
+
+.cut-label {
+  font-size: 9px !important;
+  letter-spacing: 0.12em;
+  color: #aaaaaa !important;
+  text-transform: uppercase;
+  font-weight: 500;
+}
+
+.cut-pct {
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  color: #ffffff !important;
+  min-width: 30px;
+  text-align: right;
+  letter-spacing: -0.01em;
+}
+
+.cut-pct.cut-warn  { color: #f0b840 !important; }
+.cut-pct.cut-danger{ color: #f05a50 !important; }
+
+.cut-bar-track {
+  width: 52px;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.cut-bar-fill {
+  height: 100%;
+  width: 0%;
+  background: #cf6031;
+  border-radius: 2px;
+  transition: width 0.6s ease;
+}
+
+.cut-bar-fill.cut-warn   { background: #f0b840; }
+.cut-bar-fill.cut-danger { background: #f05a50; }
+
+@keyframes cut-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}

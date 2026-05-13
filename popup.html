@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Claude Usage Tracker</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      width: 240px;
+      background: #0d0d10;
+      color: #ffffff;
+      font-family: 'IBM Plex Mono', 'Courier New', monospace;
+      font-size: 12px;
+      overflow: hidden;
+    }
+
+    .header {
+      padding: 14px 16px 10px;
+      border-bottom: 1px solid rgba(255,255,255,0.12);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .header-title {
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      color: #ffffff;
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+    .header-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: #cf6031;
+      box-shadow: 0 0 7px #cf6031;
+      animation: pulse 2s ease-in-out infinite;
+    }
+    .header-dot.stale { background: #f0b840; box-shadow: 0 0 7px #f0b840; animation: none; }
+    .header-dot.offline { background: #555; box-shadow: none; animation: none; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+    .usage-block {
+      padding: 16px 16px 12px;
+      border-bottom: 1px solid rgba(255,255,255,0.12);
+    }
+    .usage-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 8px;
+    }
+    .usage-label {
+      font-size: 9px;
+      letter-spacing: 0.1em;
+      color: #aaaaaa;
+      text-transform: uppercase;
+    }
+    .usage-pct {
+      font-size: 24px;
+      font-weight: 600;
+      color: #ffffff;
+    }
+    .usage-pct.warn  { color: #f0b840; }
+    .usage-pct.danger{ color: #f05a50; }
+
+    .bar-track {
+      height: 4px;
+      background: rgba(255,255,255,0.12);
+      border-radius: 2px;
+      overflow: hidden;
+      margin-bottom: 8px;
+    }
+    .bar-fill {
+      height: 100%;
+      background: #cf6031;
+      border-radius: 2px;
+      transition: width 0.5s ease;
+    }
+    .bar-fill.warn  { background: #f0b840; }
+    .bar-fill.danger{ background: #f05a50; }
+
+    .reset-time { font-size: 10px; color: #aaaaaa; }
+
+    .no-data {
+      font-size: 10px;
+      color: #aaaaaa;
+      line-height: 1.6;
+      margin-top: 4px;
+    }
+    .no-data strong { color: #ffffff; }
+
+    .weekly-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      padding: 10px 16px;
+      border-bottom: 1px solid rgba(255,255,255,0.12);
+    }
+    .weekly-label {
+      font-size: 9px;
+      letter-spacing: 0.1em;
+      color: #aaaaaa;
+      text-transform: uppercase;
+      flex: 1;
+    }
+    .weekly-bar-track {
+      width: 80px; height: 3px;
+      background: rgba(255,255,255,0.12);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .weekly-bar-fill {
+      height: 100%;
+      background: #cf6031;
+      opacity: 0.6;
+      border-radius: 2px;
+      transition: width 0.5s ease;
+    }
+    .weekly-pct-text {
+      font-size: 10px;
+      color: #ffffff;
+      min-width: 28px;
+      text-align: right;
+    }
+
+    .mode-section {
+      padding: 12px 16px;
+      border-bottom: 1px solid rgba(255,255,255,0.12);
+    }
+    .mode-label {
+      font-size: 9px;
+      letter-spacing: 0.1em;
+      color: #aaaaaa;
+      text-transform: uppercase;
+      margin-bottom: 5px;
+    }
+    .mode-desc {
+      font-size: 9px;
+      color: #888888;
+      margin-bottom: 8px;
+      line-height: 1.4;
+    }
+    .toggle-group { display: flex; gap: 4px; }
+    .toggle-btn {
+      flex: 1;
+      padding: 6px 4px;
+      border: 1px solid rgba(255,255,255,0.15);
+      background: transparent;
+      color: #aaaaaa;
+      font-family: inherit;
+      font-size: 9px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .toggle-btn:hover { border-color: rgba(255,255,255,0.3); color: #ffffff; }
+    .toggle-btn.active {
+      background: rgba(207,96,49,0.2);
+      border-color: rgba(207,96,49,0.6);
+      color: #cf6031;
+      font-weight: 600;
+    }
+
+    .actions { padding: 10px 16px 12px; display: flex; gap: 6px; }
+    .action-btn {
+      flex: 1;
+      padding: 7px 8px;
+      border: 1px solid rgba(255,255,255,0.15);
+      background: transparent;
+      color: #aaaaaa;
+      font-family: inherit;
+      font-size: 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .action-btn:hover { border-color: rgba(255,255,255,0.3); color: #ffffff; }
+    .action-btn.primary {
+      border-color: rgba(207,96,49,0.5);
+      color: #cf6031;
+      font-weight: 600;
+    }
+    .action-btn.primary:hover { background: rgba(207,96,49,0.12); }
+
+    .updated-row { padding: 0 16px 10px; font-size: 9px; color: #666666; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <span class="header-title">Claude Tracker</span>
+    <div class="header-dot" id="status-dot"></div>
+  </div>
+
+  <div class="usage-block">
+    <div class="usage-row">
+      <span class="usage-label">5-hr Session</span>
+      <span class="usage-pct" id="session-pct">—</span>
+    </div>
+    <div class="bar-track">
+      <div class="bar-fill" id="session-bar" style="width:0%"></div>
+    </div>
+    <div class="reset-time" id="reset-time"></div>
+    <div class="no-data" id="no-data">
+      Visit <strong>claude.ai/settings/usage</strong> once to load data. Auto-updates every 5 min after that.
+    </div>
+  </div>
+
+  <div class="weekly-row" id="weekly-row" style="display:none">
+    <span class="weekly-label">Weekly</span>
+    <div class="weekly-bar-track">
+      <div class="weekly-bar-fill" id="weekly-bar" style="width:0%"></div>
+    </div>
+    <span class="weekly-pct-text" id="weekly-pct">—%</span>
+  </div>
+
+  <div class="mode-section">
+    <div class="mode-label">Corner Indicator</div>
+    <div class="mode-desc">Tiny usage bar fixed to the bottom-right of Claude while you chat.</div>
+    <div class="toggle-group">
+      <button class="toggle-btn active" data-mode="persistent" id="btn-persistent">Always On</button>
+      <button class="toggle-btn" data-mode="hidden" id="btn-hidden">Hide It</button>
+    </div>
+  </div>
+
+  <div class="actions">
+    <button class="action-btn primary" id="btn-refresh">↻ Refresh</button>
+    <button class="action-btn" id="btn-settings">Settings →</button>
+  </div>
+
+  <div class="updated-row" id="updated-row"></div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
